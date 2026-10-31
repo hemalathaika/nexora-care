@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NEXORA care | 3D Interactive Demo</title>
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #070b14;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --border-glow: rgba(56, 189, 248, 0.25);
+      --cyan-primary: #38bdf8;
+      --cyan-glow: #06b6d4;
+      --blue-accent: #3b82f6;
+      --text-main: #f8fafc;
+      --text-muted: #b2abf3;
+      --font-main: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin:0; padding:0; user-select:none; }
+    body {
+      background: var(--bg-dark);
+      color:var(--text-main);
+      font-family:var(--font-main);
+      min-height:100vh;
+      line-height:1.5;
+      overflow-x:hidden;
+    }
+
+    /* Ambient Canvas Background (full-screen) */
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* App root */
+    #app-root { position: relative; z-index: 1; display:flex; flex-direction:column; min-height:100vh; }
+
+    header {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:20px 5%;
+      background: rgba(7,11,20,0.8);
+      backdrop-filter: blur(10px);
+      position: sticky; top:0; z-index:100;
+      border-bottom:1px solid rgba(255,255,255,0.05);
+    }
+    .logo { display:flex; gap:12px; align-items:center; font-weight:800; font-size:1.25rem; cursor:pointer; }
+    .logo i { color:var(--cyan-primary); font-size:1.6rem; }
+    nav ul { display:flex; gap:30px; list-style:none; }
+    nav a { color:var(--text-muted); text-decoration:none; cursor:pointer; }
+    nav a.active, nav a:hover { color:var(--cyan-primary); }
+
+    .btn-glow {
+      background: linear-gradient(135deg,var(--cyan-glow),var(--blue-accent));
+      color:#fff; border:none; padding:10px 18px; border-radius:10px; font-weight:600; cursor:pointer;
+      display:inline-flex; gap:10px; align-items:center; box-shadow:0 6px 18px rgba(6,182,212,0.25);
+    }
+    .btn-outline {
+      background:transparent; border:1px solid var(--cyan-primary); color:var(--cyan-primary); padding:10px 18px; border-radius:10px; cursor:pointer;
+    }
+
+    .view-section {
+      display:none; padding:40px 5%; animation:fadeIn 0.90s ease both;
+    }
+    .view-section.active { display:block; }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+
+    /* Hero */
+    .hero-container { display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center; min-height:70vh; }
+    .hero-text h1 {
+      font-size:3rem;
+      background: linear-gradient(135deg,#fff 30%, var(--cyan-primary));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin:12px 0 18px;
+    }
+    .hero-text p { color:var(--text-muted); font-size:1.05rem; margin-bottom:20px; }
+
+    .hero-3d-viewport {
+      width:100%; height:450px; border-radius:18px; position:relative; overflow:hidden;
+      background: radial-gradient(circle at 50% 40%, rgba(56,189,248,0.06), rgba(7,11,20,0.85));
+      border:1px solid rgba(56,189,248,0.12);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.6), inset 0 0 30px rgba(56,189,248,0.07);
+    }
+
+    /* Uses Section layout */
+    .uses-scroll-section { padding:80px 5%; position:relative; }
+    .uses-container { display:grid; grid-template-columns: 420px 1fr; gap:40px; align-items:start; max-width:1200px; margin:0 auto; }
+    .uses-3d-wrapper { position:sticky; top:100px; height:450px; perspective:1000px; }
+    #uses-3d-canvas { width:100%; height:100%; border-radius:14px; overflow:hidden; background:transparent; }
+
+    .uses-content-wrapper { min-height: 350px; }
+    .section-title { font-size:1.8rem; margin-bottom:18px; background:linear-gradient(135deg,#fff,var(--cyan-primary)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+
+    /* 3D style use buttons */
+    .use-case-nav { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
+    .use-btn {
+      --depth: 8px;
+      position:relative;
+      padding:10px 16px;
+      border-radius:10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--text-muted);
+      cursor:pointer;
+      font-weight:700;
+      transform-style:preserve-3d;
+      transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 220ms;
+      box-shadow: 0 6px 0 rgba(0,0,0,0.35), 0 8px 20px rgba(6,182,212,0.03);
+      perspective: 700px;
+    }
+    .use-btn::after {
+      content:'';
+      position:absolute;
+      left:8px; right:8px; bottom:-var(--depth);
+      height:var(--depth);
+      border-radius:8px;
+      background:linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.6));
+      z-index:-1;
+      filter: blur(6px);
+      transition: opacity 220ms;
+    }
+    .use-btn:hover {
+      transform: translateY(-12px) rotateX(6deg) translateZ(12px);
+      color: var(--cyan-primary);
+      box-shadow: 0 18px 30px rgba(6,182,212,0.16);
+    }
+    .use-btn.active {
+      background: linear-gradient(180deg, rgba(56,189,248,0.12), rgba(56,189,248,0.04));
+      border-color: var(--cyan-primary);
+      color:var(--cyan-primary);
+      transform: translateY(-10px) rotateX(6deg) translateZ(10px);
+      box-shadow: 0 18px 30px rgba(6,182,212,0.22);
+    }
+
+    /* Description card */
+    .glass-panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-glow);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.36);
+      padding:18px;
+    }
+    .use-card { padding:24px; transition: transform 260ms ease, opacity 260ms ease; }
+
+    .use-card h3 { font-size:1.25rem; margin-bottom:8px; }
+    .use-card p { color:var(--text-muted); margin-bottom:12px; }
+    .use-bullets { list-style:none; padding-left:0; }
+    .use-bullets li { padding-left:18px; margin-bottom:8px; position:relative; color:var(--text-main); }
+    .use-bullets li::before { content:'▹'; position:absolute; left:0; color:var(--cyan-primary); }
+
+    /* Language cards */
+    .lang-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:14px; margin-top:18px; }
+    .lang-card {
+      background: rgba(255,255,255,0.02);
+      border:1px solid rgba(255,255,255,0.06);
+      padding:16px; border-radius:10px; text-align:center; cursor:pointer; transition: transform 200ms, border-color 200ms, box-shadow 200ms;
+    }
+    .lang-card:hover, .lang-card.selected { transform: translateY(-8px); border-color:var(--cyan-primary); box-shadow: 0 12px 26px rgba(6,182,212,0.08); }
+
+    /* Forms and others simplified */
+    .kiosk-card { max-width:980px; margin:0 auto; padding:28px; border-radius:12px; }
+    .form-control { width:100%; padding:10px 12px; border-radius:8px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.08); color:#fff; }
+    .form-group { margin-bottom:12px; }
+
+    /* Interview layout */
+    .interview-container { display:grid; grid-template-columns: 240px 1fr 260px; gap:18px; align-items:start; min-height:420px; }
+    .ai-avatar-panel { border-right:1px solid rgba(255,255,255,0.06); padding:18px; display:flex; align-items:center; flex-direction:column; gap:8px; }
+    .avatar-orb { width:100px; height:100px; border-radius:50%; background: radial-gradient(circle, var(--cyan-primary) 0%, var(--blue-accent) 70%); box-shadow:0 0 30px var(--cyan-glow); animation:pulse 3s infinite; }
+    @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.06); } }
+
+    .workflow-box { border-left:1px solid rgba(255,255,255,0.06); padding:16px; display:flex; flex-direction:column; gap:8px; }
+    .workflow-step { background: rgba(255,255,255,0.02); padding:8px 10px; border-radius:6px; text-align:center; color:var(--text-muted); font-weight:600; }
+    .workflow-step.active { color:var(--cyan-primary); border:1px solid rgba(56,189,248,0.12); background: rgba(56,189,248,0.06); }
+
+    /* OCR */
+    .ocr-zone { padding:40px; border-radius:12px; border:2px dashed rgba(56,189,248,0.14); text-align:center; cursor:pointer; position:relative; overflow:hidden; }
+    .scan-line { position:absolute; left:0; right:0; height:4px; background:var(--cyan-primary); box-shadow:0 0 14px var(--cyan-primary); top:0; display:none; animation:scan 2s linear infinite; }
+    @keyframes scan { 0% { top:0% } 100% { top:100% } }
+
+    .doctor-dashboard { display:grid; grid-template-columns:320px 1fr; gap:20px; }
+    .patient-queue { display:flex; flex-direction:column; gap:10px; }
+
+    /* small screens */
+    @media (max-width: 992px) {
+      .hero-container, .interview-container, .doctor-dashboard { grid-template-columns: 1fr; }
+      .uses-container { grid-template-columns: 1fr; }
+      .uses-3d-wrapper { position:relative; height:320px; }
+      .ai-avatar-panel { border-right:none; border-bottom:1px solid rgba(255,255,255,0.06); }
+    }
+  </style>
+</head>
+<body>
+  
+  
+  <div id="canvas-container"></div>
+
+  <div id="app-root">
+    <header>
+      <div class="logo" onclick="router.navigate('landing')">
+        <i class="fa-solid fa-heart-pulse"></i>
+        <span>NEXORA care <small style="color:var(--cyan-primary); font-size:0.7rem; vertical-align:super; margin-left:6px;">AI</small></span>
+      </div>
+
+      <nav>
+        <ul>
+          <li><a class="nav-link active" onclick="router.navigate('landing')">Home</a></li>
+          <li><a class="nav-link" onclick="router.navigate('patient-welcome')">Patient Intake</a></li>
+          <li><a class="nav-link" onclick="router.navigate('doctor-dashboard')">Doctor Console</a></li>
+        </ul>
+      </nav>
+
+      <div>
+        <button class="btn-glow" onclick="router.navigate('patient-registration')"><i class="fa-solid fa-play"></i> Start Checkup</button>
+      </div>
+    </header>
+
+    <!-- Landing -->
+    <section id="view-landing" class="view-section active">
+      <div class="hero-container">
+        <div class="hero-text">
+          <span style="color:var(--cyan-primary); font-weight:700; letter-spacing:1.2px; text-transform:uppercase; font-size:0.8rem;">Next-Gen Indian Hospital Triage</span>
+          <h1>Automated Patient Intake System - NEXORA care</h1>
+          <p>Smart intake speeds the journey from the door to care — with quiet algorithms lightening the waiting chair.</p>
+          <div style="display:flex; gap:12px; margin-top:8px;">
+            <button class="btn-glow" onclick="router.navigate('patient-welcome')"><i class="fa-solid fa-user-check"></i> Patient Intake</button>
+            <button class="btn-outline" onclick="router.navigate('doctor-dashboard')"><i class="fa-solid fa-user-doctor"></i> Doctor Portal</button>
+          </div>
+        </div>
+
+        <div id="hero-3d-target" class="hero-3d-viewport glass-panel">
+          <img src="./hospitalpicnexora.jpg" alt="Hospital" class="hero-image"
+          width="100%" height="100%"  />
+        </div>
+
+
+        <div class="scroll-highlight-box">
+          <p id="scrollHighlightText">
+        Patient Case-Taking Software is a digital system that collects and organizes a patient's medical information, such as symptoms, medical history, medicines, allergies, and previous reports, before the doctor consultation.
+          </p>
+        </div>
+      </div>
+
+      <!-- Uses / 3D interactive area -->
+      <section class="uses-scroll-section" style="margin-top:10px;">
+        <div class="uses-container">
+          <div class="uses-3d-wrapper">
+            <div id="uses-3d-canvas" class="glass-panel"></div>
+          </div>
+
+          <div class="uses-content-wrapper">
+            <h2 class="section-title">Patient Case Taking Software</h2>
+
+            <div class="use-case-nav" id="useButtons">
+              <button class="use-btn active" data-index="0">Actual Problem</button>
+              <button class="use-btn" data-index="1">Proposed Solution</button>
+              <button class="use-btn" data-index="2">How it Useful</button>
+              <button class="use-btn" data-index="3">AI diagnose the patient ? </button>
+            </div>
+
+            <div id="use-case-display" class="glass-panel use-card">
+              <h3 id="use-title">Very High OPD Patient Volumes</h3>
+              <p id="use-desc">Indian government hospitals have been facing the challenge of managing very high volumes of out-patient department (OPD) visits, leading to long waiting times and reduced quality of care.</p>
+              <ul id="use-highlights" class="use-bullets">
+                <li>Patients repeatedly explain the same information.</li>
+                <li>Old prescriptions/reports are on paper.</li>
+                <li>Patient history is often incomplete.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- Patient Welcome -->
+    <section id="view-patient-welcome" class="view-section">
+      <div class="glass-panel kiosk-card" style="text-align:center;">
+        <i class="fa-solid fa-hospital-user" style="font-size:3.2rem;color:var(--cyan-primary);margin-bottom:12px;"></i>
+        <h1 style="margin-bottom:8px;">Welcome to Smart Intake</h1>
+        <p style="color:var(--text-muted);max-width:720px;margin:0 auto 18px;">Tell us about your health today. NEXORA-care records your history, scans prior records, and prepares a clinical summary for the doctor.</p>
+        <div style="display:flex;justify-content:center;gap:12px;">
+          <button class="btn-glow" onclick="router.navigate('patient-registration')">Start Patient Registration <i class="fa-solid fa-arrow-right" style="margin-left:8px;"></i></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Patient Registration -->
+    <section id="view-patient-registration" class="view-section">
+      <div class="glass-panel kiosk-card">
+        <div style="display:flex; gap:8px; margin-bottom:18px;">
+          <span class="step-item active" style="color:var(--cyan-primary);">1. Patient Registration</span>
+          <span class="step-item" style="color:var(--text-muted); margin-left:8px;">2. Language Selection</span>
+        </div>
+        <h2 style="margin-bottom:12px;">Step 1: Patient Registration</h2>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input id="reg-name" class="form-control" placeholder="Enter your full name" />
+          </div>
+          <div class="form-group">
+            <label>Age *</label>
+            <input id="reg-age" type="number" min="0" class="form-control" placeholder="Age" />
+          </div>
+          <div class="form-group">
+            <label>Gender</label>
+            <select id="reg-gender" class="form-control">
+              <option>Male</option><option>Female</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ABHA ID</label>
+            <input id="reg-abha" class="form-control" placeholder="XX-XXXX-XXXX-XXXX" />
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top:18px;">
+          <button class="btn-outline" onclick="router.navigate('patient-welcome')">Back</button>
+          <button class="btn-glow" onclick="validateRegistration()">Continue to Language Selection</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Language Selection -->
+    <section id="view-patient-language" class="view-section">
+      <div class="glass-panel kiosk-card">
+        <div style="margin-bottom:12px;">
+          <h2>Step 2: Language Selection / भाषा चुनें</h2>
+        </div>
+
+        <div class="lang-grid" id="langGrid">
+          <div class="lang-card selected" data-lang="English"><h3>English</h3><span style="color:var(--text-muted)">Default</span></div>
+          <div class="lang-card" data-lang="Hindi"><h3>हिन्दी</h3><span style="color:var(--text-muted)">Hindi</span></div>
+          <div class="lang-card" data-lang="Telugu"><h3>తెలుగు</h3><span style="color:var(--text-muted)">Telugu</span></div>
+          <div class="lang-card" data-lang="Tamil"><h3>தமிழ்</h3><span style="color:var(--text-muted)">Tamil</span></div>
+          <div class="lang-card" data-lang="Kannada"><h3>ಕನ್ನಡ</h3><span style="color:var(--text-muted)">Kannada</span></div>
+          <div class="lang-card" data-lang="Bengali"><h3>বাংলা</h3><span style="color:var(--text-muted)">Bengali</span></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top:18px;">
+          <button class="btn-outline" onclick="router.navigate('patient-registration')">Back</button>
+          <button class="btn-glow" onclick="router.navigate('patient-consent')">Continue to Consent</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Consent -->
+    <section id="view-patient-consent" class="view-section">
+      <div class="glass-panel kiosk-card">
+        <div style="margin-bottom:12px;"><h2>Step 3: Consent</h2></div>
+        <div style="background:rgba(0,0,0,0.28); padding:14px; border-radius:8px; color:var(--text-muted); margin-bottom:12px;">
+          <p>By proceeding, you consent to NEXORA-care collecting your medical symptoms, parsing prior records, and generating a clinical summary draft for your doctor.</p>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+          <input type="checkbox" id="consentCheck" style="width:18px;height:18px;" onchange="toggleConsent(this)" />
+          <label for="consentCheck" style="font-weight:600; cursor:pointer;">I accept and grant permission to proceed</label>
+        </div>
+
+        <div style="display:flex; justify-content:space-between;">
+          <button class="btn-outline" onclick="router.navigate('patient-language')">Back</button>
+          <button id="btnConsentContinue" class="btn-glow" style="opacity:0.5; pointer-events:none;" onclick="router.navigate('patient-interview')">Begin Interview</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interview -->
+    <section id="view-patient-interview" class="view-section">
+      <div class="glass-panel kiosk-card" style="max-width:1100px;">
+        <div class="interview-container">
+          <div class="ai-avatar-panel">
+            <div class="avatar-orb"></div>
+            <h4 style="color:var(--cyan-primary);">AI Assistant</h4>
+            <span id="interview-lang-indicator" style="color:var(--text-muted); font-size:0.78rem;">Listening in English</span>
+          </div>
+
+          <div style="padding:16px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <span style="font-size:0.78rem; color:var(--cyan-primary); text-transform:uppercase; font-weight:700;">AI Voice + Adaptive Questions</span>
+              <h2 id="greeting-title" style="margin-top:10px;">Hello, please describe your health concern:</h2>
+
+              <div class="form-group" style="margin-top:16px;">
+                <label>Describe your main symptoms / problem:</label>
+                <textarea id="patient-problem-input" class="form-control" rows="5" placeholder="Type your medical symptoms..."></textarea>
+              </div>
+            </div>
+
+            <div style="margin-top:18px; display:flex; justify-content:flex-end; gap:12px; border-top:1px solid rgba(255,255,255,0.04); padding-top:12px;">
+              <button class="btn-outline" onclick="router.navigate('patient-consent')">Back</button>
+              <button id="interview-continue-btn" class="btn-glow" onclick="submitPatientProblem()">Save & Continue to Document OCR <i class="fa-solid fa-arrow-right" style="margin-left:8px;"></i></button>
+            </div>
+          </div>
+
+          <div class="workflow-box">
+            <h4 style="color:var(--cyan-primary); font-weight:700; font-size:0.85rem;">Workflow Roadmap</h4>
+            <div class="workflow-step">1. Registration</div>
+            <div class="workflow-step">2. Language</div>
+            <div class="workflow-step">3. Consent</div>
+            <div class="workflow-step active">4. AI Voice + History</div>
+            <div class="workflow-step active">5. Adaptive Qs</div>
+            <div class="workflow-step">6. Document OCR</div>
+            <div class="workflow-step">7. Clinical Summary</div>
+            <div class="workflow-step">8. Doctor Dashboard</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OCR -->
+    <section id="view-patient-ocr" class="view-section">
+      <div class="glass-panel kiosk-card">
+        <h2>Step 6: Document OCR</h2>
+        <p style="color:var(--text-muted); margin-bottom:16px;">Upload or scan past lab reports, prescriptions, or medical documents.</p>
+
+        <div class="ocr-zone" onclick="triggerOCRScan()">
+          <div class="scan-line" id="scanLine"></div>
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size:2.4rem; color:var(--cyan-primary); margin-bottom:10px;"></i>
+          <h4>Click to Scan Medical Records</h4>
+          <p style="color:var(--text-muted); font-size:0.9rem;">Supports PDF, PNG, JPG</p>
+        </div>
+
+        <div id="ocr-results" style="display:none; margin-top:18px; background:rgba(0,0,0,0.28); padding:12px; border-radius:8px;">
+          <h4 style="color: #10b981;"><i class="fa-solid fa-circle-check"></i> OCR Analysis Completed</h4>
+          <p style="color:var(--text-muted);">Uploaded records digitized and parsed into timeline context.</p>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top:18px;">
+          <button class="btn-outline" onclick="router.navigate('patient-interview')">Back</button>
+          <button class="btn-glow" onclick="router.navigate('patient-summary')">Generate Clinical Summary</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary -->
+    <section id="view-patient-summary" class="view-section">
+      <div class="glass-panel kiosk-card">
+        <h2>Step 7: Clinical Summary</h2>
+        <p style="color:var(--text-muted); margin-bottom:12px;">Review the generated summary before sending to doctor console.</p>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:8px;">
+            <strong style="color:var(--cyan-primary);">Patient Info:</strong>
+            <p id="summary-patient-info" style="margin-top:6px; color:var(--text-main);">Not provided</p>
+          </div>
+          <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:8px;">
+            <strong style="color:var(--cyan-primary);">Chief Complaint & Symptoms:</strong>
+            <p id="summary-cc" style="margin-top:6px; color:var(--text-main);">Not provided</p>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top:18px;">
+          <button class="btn-outline" onclick="router.navigate('patient-ocr')">Back</button>
+          <button class="btn-glow" style="background:linear-gradient(135deg,#10b981,#06b6d4);" onclick="transmitToDoctor()"><i class="fa-solid fa-paper-plane"></i> Transmit to Doctor Dashboard</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Doctor Dashboard -->
+    <section id="view-doctor-dashboard" class="view-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <h2>Step 8: Doctor Dashboard</h2>
+          <p style="color:var(--text-muted)">Physician Review & Clinical Triage Console</p>
+        </div>
+      </div>
+
+      <div class="doctor-dashboard">
+        <div>
+          <h3 style="color:var(--text-muted); margin-bottom:8px;">CURRENT PATIENT QUEUE</h3>
+          <div class="patient-queue" id="patient-queue-list">
+            <p style="color:var(--text-muted)">No registered patients yet.</p>
+          </div>
+        </div>
+
+        <div class="glass-panel" style="padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:12px; margin-bottom:12px;">
+            <div>
+              <h2 id="doc-patient-name">No Patient Selected</h2>
+              <span id="doc-patient-meta" style="color:var(--text-muted);">Register a patient to populate dashboard data</span>
+            </div>
+            <span id="doc-priority-tag" class="priority-badge normal" style="padding:6px 10px; border-radius:999px; background: rgba(16,185,129,0.12); color:#10b981;">Active</span>
+          </div>
+
+          <div>
+            <label style="color:var(--cyan-primary); font-weight:700;">CHIEF COMPLAINT</label>
+            <textarea id="edit-cc" class="form-control" rows="4" style="margin-top:8px;"></textarea>
+          </div>
+
+          <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--text-muted); font-size:0.85rem;"><i class="fa-solid fa-lock"></i> EHR Synchronization Ready</span>
+            <button class="btn-glow" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="confirmPhysicianVerification()"><i class="fa-solid fa-user-check"></i> Validate & Save to EHR</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    /* ---------------- State ---------------- */
+    const state = {
+      currentView: 'landing',
+      selectedLanguage: 'English',
+      patient: {
+        name: '',
+        age: '',
+        gender: 'Male',
+        abha: '',
+        problem: '',
+        redFlag: false,
+        pastHistory: ''
+      }
+    };
+
+    /* ---------------- Translations ---------------- */
+    const interviewTranslations = {
+      English: {
+        greeting: (name) => `Hello ${name ? name + ',' : ''} please describe your health concern:`,
+        placeholder: "Type your medical symptoms or health issues here...",
+        indicator: "Listening in English",
+        recordBtn: "Start Speaking",
+        continueBtn: "Save & Continue to Document OCR"
+      },
+      Hindi: {
+        greeting: (name) => `नमस्ते ${name ? name + ',' : ''} कृपया अपनी स्वास्थ्य समस्या बताएं:`,
+        placeholder: "अपनी मुख्य स्वास्थ्य समस्या यहाँ लिखें...",
+        indicator: "हिंदी में सुन रहे हैं",
+        recordBtn: "बोलना शुरू करें",
+        continueBtn: "दस्तावेज़ स्कैन पर आगे बढ़ें"
+      },
+      Telugu: {
+        greeting: (name) => `నమస్కారం ${name ? name + ',' : ''} దయచేసి మీ ఆరోగ్య సమస్యను వివరించండి:`,
+        placeholder: "మీ వైద్య సంఖ్యను ఇక్కడ టైప్ చేయండి...",
+        indicator: "తెలుగులో వింటున్నాం",
+        recordBtn: "మాట్లాడటం ప్రారంభించండి",
+        continueBtn: "డాక్యుమెంట్ స్కానర్కు కొనసాగండి"
+      },
+      Tamil: {
+        greeting: (name) => `வணக்கம் ${name ? name + ',' : ''} உங்கள் சுகாதாரப் பிரச்சினையை விவரிக்கவும்:`,
+        placeholder: "உங்கள் சுகாதார பிரச்சினைகளை இங்கே தட்டச்சு செய்க...",
+        indicator: "தமிழில் கேட்கிறது",
+        recordBtn: "பேசத் தொடங்குங்கள்",
+        continueBtn: "ஆவண ஸ்கேனுக்குத் தொடரவும்"
+      },
+      Kannada: {
+        greeting: (name) => `ನಮಸ್ಕಾರ ${name ? name + ',' : ''} ದಯವಿಟ್ಟು ನಿಮ್ಮ ಆರೋಗ್ಯ ಸಮಸ್ಯೆಯನ್ನು ವಿವರಿಸಿ:`,
+        placeholder: "ನಿಮ್ಮ ವೈದ್ಯಕೀಯ ಸಮಸ್ಯೆಯನ್ನು ಇಲ್ಲಿ ಟೈಪ್ ಮಾಡಿ...",
+        indicator: "ಕನ್ನಡದಲ್ಲಿ ಕೇಳಲಾಗುತ್ತಿದೆ",
+        recordBtn: "ಮಾತನಾಡಲು ಪ್ರಾರಂಭಿಸಿ",
+        continueBtn: "ಡಾಕ್ಯುಮೆಂಟ್ ಸ್ಕ್ಯಾನ್‌ಗೆ ಮುಂದುವರೆಯಿರಿ"
+      },
+      Bengali: {
+        greeting: (name) => `নমস্কার ${name ? name + ',' : ''} অনুগ্রহ করে আপনার স্বাস্থ্য সমস্যা বর্ণনা করুন:`,
+        placeholder: "আপনার প্রধান স্বাস্থ্য সমস্যা এখানে টাইপ করুন...",
+        indicator: "বাংলা-তে শোনা হচ্ছে",
+        recordBtn: "কথা বলা শুরু করুন",
+        continueBtn: "ডকুমেন্ট স্ক্যান-এ এগিয়ে যান"
+      }
+    };
+
+    /* ---------------- Router ---------------- */
+    const router = {
+      navigate(viewId) {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+
+        const targetView = document.getElementById(`view-${viewId}`);
+        if (targetView) {
+          targetView.classList.add('active');
+          state.currentView = viewId;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // header active highlight
+        const navLinks = document.querySelectorAll('.nav-link');
+        if (viewId === 'landing') navLinks[0]?.classList.add('active');
+        else if (viewId.startsWith('patient')) navLinks[1]?.classList.add('active');
+        else if (viewId === 'doctor-dashboard') navLinks[2]?.classList.add('active');
+
+        // apply translation if going to interview
+        if (viewId === 'patient-interview') applyLanguageToInterview();
+      }
+    };
+
+    /* ---------------- Hero 3D Scene (ambient) ---------------- */
+    function initHero3D() {
+      const container = document.getElementById('canvas-container');
+      if (!container) return;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(renderer.domElement);
+
+      // central wireframe icosahedron
+      const geo = new THREE.IcosahedronGeometry(3, 2);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.18 });
+      const mesh = new THREE.Mesh(geo, mat);
+      scene.add(mesh);
+
+      // small particle field
+      const pGeo = new THREE.BufferGeometry();
+      const count = 600;
+      const positions = new Float32Array(count * 3);
+      for (let i = 0; i < positions.length; i++) positions[i] = (Math.random() - 0.5) * 30;
+      pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const pMat = new THREE.PointsMaterial({ size: 0.03, color: 0x06b6d4, transparent: true, opacity: 0.9 });
+      const points = new THREE.Points(pGeo, pMat);
+      scene.add(points);
+
+      camera.position.z = 10;
+
+      function animate() {
+        requestAnimationFrame(animate);
+        mesh.rotation.x += 0.0025;
+        mesh.rotation.y += 0.004;
+        points.rotation.y -= 0.0005;
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    /* ---------------- Uses 3D Scene (interactive) ---------------- */
+    const useCasesData = [
+      { title: "Hospitals Have Very High OPD Patient Volumes", desc: "Indian government hospitals have very little consultation time. Doctors must collect patient history, examine patients, review old reports, and prescribe treatment in a short period..", bullets:["Patients repeatedly explain the same information","Doctors spend valuable time reading and organizing records.","AYUSH case-taking requires additional detailed information."], color:0x38bdf8, shape:'icosahedron' },
+      { title: "Patient-Facing Software System That Works Before the Doctor Consultation.", desc: "Identifies themselves → gives consent → selects language → answers questions by voice/touch → scans old medical documents → AI organizes the information → generates a structured history → doctor reviews it..", bullets:["ABHA integration","Voice + touch","digital bridge between the patient and doctor"], color:0x8b5cf6, shape:'torus' },
+      { title: "It Reduces Repetitive History-Taking", desc: "It reduces repetitive history-taking and paperwork for doctors while making healthcare intake easier for elderly, low-literacy and regional-language patients", bullets:["Saves Doctors' Time","Reduces Paperwork and Repeated Questions","Faster intake"], color:0x06b6d4, shape:'box' },
+      { title: "No", desc: "Our system is an AI-assisted clinical intake and documentation tool. The doctor always verifies the information and makes the final clinical decision..", bullets:["AI acts as an assistant for the doctor","Summarizes the Patient's Information.","Clinician notes"], color:0x10b981, shape:'octahedron' }
+    ];
+    let useScene, useCamera, useRenderer, useActiveMesh;
+    function initUseCase3D() {
+      const container = document.getElementById('uses-3d-canvas');
+      if (!container) return;
+      useScene = new THREE.Scene();
+      useCamera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+      useRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      useRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      useRenderer.setSize(container.clientWidth, container.clientHeight);
+      container.appendChild(useRenderer.domElement);
+      useCamera.position.z = 6;
+
+      const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+      useScene.add(ambient);
+      const light = new THREE.DirectionalLight(0x38bdf8, 1.6);
+      light.position.set(3,3,3); useScene.add(light);
+
+      // initial mesh
+      update3DMesh(0);
+
+      const clock = new THREE.Clock();
+      function animate() {
+        requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+        if (useActiveMesh) {
+          useActiveMesh.rotation.x += 0.004;
+          useActiveMesh.rotation.y += 0.007;
+          useActiveMesh.position.y = Math.sin(t * 1.2) * 0.08;
+        }
+        useRenderer.render(useScene, useCamera);
+      }
+      animate();
+
+      // resize
+      new ResizeObserver(() => {
+        useCamera.aspect = container.clientWidth / container.clientHeight;
+        useCamera.updateProjectionMatrix();
+        useRenderer.setSize(container.clientWidth, container.clientHeight);
+      }).observe(container);
+
+      // subtle mouse tilt
+      container.addEventListener('mousemove', (e) => {
+        if (!useActiveMesh) return;
+        const rect = container.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        useActiveMesh.rotation.x = y * 0.8;
+        useActiveMesh.rotation.y = x * 0.8;
+      });
+      container.addEventListener('mouseleave', () => {
+        if (!useActiveMesh) return;
+        useActiveMesh.rotation.x = 0;
+        useActiveMesh.rotation.y = 0;
+      });
+    }
+
+    function update3DMesh(index) {
+      const data = useCasesData[index];
+      if (!data) return;
+      // remove old
+      if (useActiveMesh) useScene.remove(useActiveMesh);
+
+      let geometry;
+      switch (data.shape) {
+        case 'torus': geometry = new THREE.TorusGeometry(1.3, 0.35, 24, 60); break;
+        case 'box': geometry = new THREE.BoxGeometry(1.7,1.7,1.7); break;
+        case 'octahedron': geometry = new THREE.OctahedronGeometry(1.6,0); break;
+        default: geometry = new THREE.IcosahedronGeometry(1.7,1); break;
+      }
+
+      const material = new THREE.MeshStandardMaterial({
+        color: data.color,
+        roughness: 0.25,
+        metalness: 0.6,
+        wireframe: true,
+        emissive: data.color,
+        emissiveIntensity: 0.08
+      });
+
+      useActiveMesh = new THREE.Mesh(geometry, material);
+      useActiveMesh.scale.setScalar(0.001);
+      useScene.add(useActiveMesh);
+
+      // simple pop-in animation
+      let t = 0;
+      const inAnim = setInterval(() => {
+        t += 0.08;
+        const s = Math.min(1, t);
+        useActiveMesh.scale.setScalar(s);
+        if (s >= 1) clearInterval(inAnim);
+      }, 16);
+    }
+
+    /* ---------------- UI behaviors ---------------- */
+    function wireUseButtons() {
+      document.querySelectorAll('.use-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.use-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const idx = Number(btn.dataset.index || 0);
+          // update content card
+          const data = useCasesData[idx];
+          document.getElementById('use-title').innerText = data.title;
+          document.getElementById('use-desc').innerText = data.desc;
+          document.getElementById('use-highlights').innerHTML = data.bullets.map(s => `<li>${s}</li>`).join('');
+          update3DMesh(idx);
+        });
+
+        // mouse tilt per button
+        btn.addEventListener('mousemove', (e) => {
+          const rect = btn.getBoundingClientRect();
+          const mx = (e.clientX - rect.left) / rect.width - 0.5;
+          const my = (e.clientY - rect.top) / rect.height - 0.5;
+          btn.style.transform = `translateY(-8px) rotateX(${my * 8}deg) rotateY(${mx * 8}deg) translateZ(8px)`;
+        });
+        btn.addEventListener('mouseleave', () => {
+          // preserve active transform
+          if (btn.classList.contains('active')) btn.style.transform = `translateY(-10px) rotateX(6deg) translateZ(10px)`;
+          else btn.style.transform = '';
+        });
+      });
+    }
+
+    /* ---------------- Language selection ---------------- */
+    function selectLanguage(lang, element) {
+      state.selectedLanguage = lang;
+      document.querySelectorAll('.lang-card').forEach(c => c.classList.remove('selected'));
+      if (element) element.classList.add('selected');
+      applyLanguageToInterview();
+    }
+    function applyLanguageToInterview() {
+      const dict = interviewTranslations[state.selectedLanguage] || interviewTranslations['English'];
+      const greet = dict.greeting(state.patient.name || '');
+      const greetingElem = document.getElementById('greeting-title');
+      if (greetingElem) greetingElem.innerText = greet;
+
+      const indicatorElem = document.getElementById('interview-lang-indicator');
+      if (indicatorElem) indicatorElem.innerText = dict.indicator;
+
+      const input = document.getElementById('patient-problem-input');
+      if (input) input.placeholder = dict.placeholder;
+
+      const continueBtn = document.getElementById('interview-continue-btn');
+      if (continueBtn) continueBtn.innerText = dict.continueBtn;
+    }
+
+    /* ---------------- Registration & Consent ---------------- */
+    function validateRegistration() {
+      const name = (document.getElementById('reg-name')?.value || '').trim();
+      const age = (document.getElementById('reg-age')?.value || '').trim();
+      if (!name || !age) { alert('Please enter Name and Age to continue.'); return; }
+      state.patient.name = name; state.patient.age = age;
+      state.patient.gender = document.getElementById('reg-gender').value;
+      state.patient.abha = document.getElementById('reg-abha').value;
+      document.getElementById('greeting-title').innerText = `Hello ${name}, please describe your health concern:`;
+      router.navigate('patient-language');
+    }
+
+    function toggleConsent(checkbox) {
+      const btn = document.getElementById('btnConsentContinue');
+      if (checkbox.checked) { btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+      else { btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none'; }
+    }
+
+    /* ---------------- Interview submission ---------------- */
+    function submitPatientProblem() {
+      const problem = (document.getElementById('patient-problem-input')?.value || '').trim();
+      if (!problem) { alert('Please describe your medical condition before proceeding.'); return; }
+      state.patient.problem = problem;
+      const lower = problem.toLowerCase();
+      if (lower.includes('chest pain') || lower.includes('chest') || lower.includes('breathless') || lower.includes('emergency')) {
+        // mark red flag and show modal (simple browser alert)
+        state.patient.redFlag = true;
+        alert('Priority Clinical Alert: potential red-flag detected. The doctor will be notified.');
+      }
+
+      // update summary
+      document.getElementById('summary-patient-info').innerText = `${state.patient.name || 'Unknown'} (${state.patient.age || '?'} yrs, ${state.patient.gender || 'N/A'})`;
+      document.getElementById('summary-cc').innerText = state.patient.problem;
+      router.navigate('patient-ocr');
+    }
+
+    /* ---------------- OCR simulation ---------------- */
+    function triggerOCRScan() {
+      const line = document.getElementById('scanLine');
+      const results = document.getElementById('ocr-results');
+      line.style.display = 'block';
+      setTimeout(() => {
+        line.style.display = 'none';
+        results.style.display = 'block';
+        state.patient.pastHistory = 'Essential Hypertension (2024) — Amlodipine 5mg OD.';
+      }, 1400);
+    }
+
+    /* ---------------- Doctor console ---------------- */
+    function populateDoctorConsole() {
+      const q = document.getElementById('patient-queue-list');
+      if (!state.patient || !state.patient.name) {
+        q.innerHTML = `<p style="color:var(--text-muted)">No registered patients yet.</p>`; return;
+      }
+      q.innerHTML = `
+        <div class="queue-card active" style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04);">
+          <div style="display:flex; justify-content:space-between; align-items:center;"><strong>${state.patient.name}</strong><span style="padding:6px 10px; border-radius:999px; background:${state.patient.redFlag ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.08)'}; color:${state.patient.redFlag ? '#ef4444' : '#10b981'};">${state.patient.redFlag ? 'High Priority' : 'In Queue'}</span></div>
+          <div style="color:var(--text-muted); margin-top:6px;">${(state.patient.problem || '').substring(0, 80)}</div>
+        </div>
+      `;
+      document.getElementById('doc-patient-name').innerText = state.patient.name;
+      document.getElementById('doc-patient-meta').innerText = `${state.patient.age} Y / ${state.patient.gender} ${state.patient.abha ? '— ABHA: ' + state.patient.abha : ''}`;
+      document.getElementById('edit-cc').value = state.patient.problem || '';
+    }
+
+    function transmitToDoctor() {
+      populateDoctorConsole();
+      router.navigate('doctor-dashboard');
+    }
+
+    function confirmPhysicianVerification() {
+      if (!state.patient.name) { alert('No patient data to save.'); return; }
+      alert(`Clinical entry for ${state.patient.name} successfully validated and saved to EHR system.`);
+    }
+
+    /* ---------------- Wire language card clicks ---------------- */
+    function wireLanguageCards() {
+      document.querySelectorAll('.lang-card').forEach(card => {
+        card.addEventListener('click', () => {
+          selectLanguage(card.dataset.lang, card);
+        });
+      });
+    }
+
+    /* -------------- Initialize on DOM loaded -------------- */
+    window.addEventListener('DOMContentLoaded', () => {
+      initHero3D();
+      initUseCase3D();
+      wireUseButtons();
+      wireLanguageCards();
+
+      // initial translations & apply to interview
+      applyLanguageToInterview();
+
+      // Use-case initial content (already showed)
+      document.querySelectorAll('.use-btn')[0]?.classList.add('active');
+
+      // ensure top nav first link active
+      document.querySelectorAll('.nav-link')[0]?.classList.add('active');
+    });
+
+  </script>
+</body>
+</html>
